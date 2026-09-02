@@ -1,0 +1,61 @@
+services:
+  # 1. Base de données PostgreSQL
+  postgres:
+    image: postgres:15-alpine
+    container_name: novabank-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - novabank-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. Backend Spring Boot
+  backend:
+    build:
+      context: ./novaBank-backend
+      dockerfile: Dockerfile
+    container_name: novabank-backend
+    ports:
+      - "8080:8080"
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - novabank-net
+
+  # 3. Frontend Angular + NGINX
+  frontend:
+    build:
+      context: ./novaBank-frontend
+      dockerfile: Dockerfile
+    container_name: novabank-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - novabank-net
+
+networks:
+  novabank-net:
+    driver: bridge
+
+volumes:
+  postgres_data:

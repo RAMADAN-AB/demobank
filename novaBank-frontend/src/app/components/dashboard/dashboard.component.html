@@ -1,0 +1,99 @@
+<div class="dashboard-container">
+  <!-- Navbar Top -->
+  <header class="navbar">
+    <div class="nav-brand">
+      <h1>NovaBank</h1>
+    </div>
+    <button (click)="onLogout()" class="btn-logout">Déconnexion</button>
+  </header>
+
+  <main class="dashboard-content">
+    <!-- Messages d'Alerte -->
+    <div class="alert alert-success" *ngIf="successMessage">{{ successMessage }}</div>
+    <div class="alert alert-danger" *ngIf="errorMessage">{{ errorMessage }}</div>
+
+    <!-- Section Comptes & Solde -->
+    <section class="section-accounts">
+      <div class="section-header">
+        <h2>Mes Comptes Bancaires</h2>
+        <button (click)="onCreateAccount()" [disabled]="isLoading" class="btn-secondary">
+          + Ouvrir un nouveau compte
+        </button>
+      </div>
+
+      <div class="accounts-grid">
+        <div
+          class="account-card"
+          *ngFor="let acc of accounts; trackBy: trackById"
+          [class.selected]="selectedAccount?.accountNumber === acc.accountNumber"
+          (click)="selectAccount(acc)">
+          <div class="card-header">
+            <span class="card-type">Compte Courant</span>
+            <span class="card-iban">{{ acc.accountNumber }}</span>
+          </div>
+          <div class="card-balance">
+            {{ acc.balance | currency:'EUR':'symbol':'1.2-2' }}
+          </div>
+        </div>
+
+        <div class="empty-state" *ngIf="accounts.length === 0">
+          <p>Vous n'avez aucun compte bancaire ouvert.</p>
+          <button (click)="onCreateAccount()" class="btn-primary">Ouvrir mon premier compte</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Zone principale : Virement & Historique -->
+    <div class="dashboard-grid" *ngIf="selectedAccount as account">
+      <!-- Formulaire de Virement -->
+      <section class="card-section">
+        <h3>Effectuer un Virement</h3>
+        <form [formGroup]="transferForm" (ngSubmit)="onTransfer()">
+          <div class="form-group">
+            <label>Compte Émetteur</label>
+            <input type="text" [value]="account.accountNumber" disabled class="input-disabled" />
+          </div>
+
+          <div class="form-group">
+            <label for="targetAccount">Compte Destinataire (IBAN)</label>
+            <input id="targetAccount" type="text" formControlName="targetAccountNumber" placeholder="FR76XXXXXXXXXX" />
+          </div>
+
+          <div class="form-group">
+            <label for="amount">Montant (€)</label>
+            <input id="amount" type="number" step="0.01" formControlName="amount" placeholder="50.00" />
+          </div>
+
+          <div class="form-group">
+            <label for="description">Motif / Description</label>
+            <input id="description" type="text" formControlName="description" placeholder="Remboursement, Loyer..." />
+          </div>
+
+          <button type="submit" [disabled]="transferForm.invalid || isLoading" class="btn-primary">
+            {{ isLoading ? 'Traitement...' : 'Valider le virement' }}
+          </button>
+        </form>
+      </section>
+
+      <!-- Historique des Transactions -->
+      <section class="card-section">
+        <h3>Historique des Opérations ({{ account.accountNumber }})</h3>
+
+        <div class="transactions-list">
+          <div class="transaction-item" *ngFor="let tx of transactions; trackBy: trackById">
+            <div class="tx-info">
+              <span class="tx-desc">{{ tx.description || 'Virement' }}</span>
+              <span class="tx-date">{{ tx.timestamp | date:'dd/MM/yyyy HH:mm' }}</span>
+            </div>
+            <div class="tx-amount" [class.negative]="tx.sourceAccount === account.accountNumber" [class.positive]="tx.targetAccount === account.accountNumber">
+              {{ tx.sourceAccount === account.accountNumber ? '-' : '+' }}
+              {{ tx.amount | currency:'EUR':'symbol':'1.2-2' }}
+            </div>
+          </div>
+
+          <p class="empty-text" *ngIf="transactions.length === 0">Aucune transaction enregistrée pour ce compte.</p>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
