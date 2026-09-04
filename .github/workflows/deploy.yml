@@ -20,7 +20,7 @@ jobs:
     steps:
       # 1. Récupérer le code du repo
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # 2. S'authentifier à AWS via OIDC (aucune clé stockée !)
       - name: Configure AWS credentials
