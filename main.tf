@@ -21,6 +21,12 @@ resource "aws_security_group" "web_sg" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+    ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
   # Sortie : autoriser tout le trafic sortant (pour télécharger Docker, les images ECR, etc.)
   egress {
@@ -62,12 +68,12 @@ resource "aws_instance" "serveur_web" {
               cd /opt/demobank
 
               # 5. Écrire le fichier .env
-              cat > .env <<'ENVFILE'
-              POSTGRES_DB=demobank_db
-              POSTGRES_USER=demobank
-              POSTGRES_PASSWORD=azerty
-              JWT_SECRET=912b1668c5731a05e618daf55aff1d9d09224f437e752aaa6b85735dc181d7ff
-              JWT_EXPIRATION=86400000
+              cat > .env <<ENVFILE
+              POSTGRES_DB=${var.postgres_db}
+              POSTGRES_USER=${var.postgres_user}
+              POSTGRES_PASSWORD=${var.postgres_password}
+              JWT_SECRET=${var.jwt_secret}
+              JWT_EXPIRATION=${var.jwt_expiration}
               ENVFILE
 
               # 6. Écrire le docker-compose.prod.yml
