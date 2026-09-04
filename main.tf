@@ -4,7 +4,7 @@ provider "aws" {
 
 data "aws_ami" "ubuntu" {
   most_recent = true
-  owners      = ["099720109477"]   # Canonical
+  owners      = ["099720109477"] # Canonical
   filter {
     name   = "name"
     values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
@@ -58,13 +58,13 @@ resource "aws_instance" "serveur_web" {
               aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 342677170112.dkr.ecr.us-east-1.amazonaws.com
 
               # 4. Créer le dossier de travail
-              mkdir -p /opt/novabank
-              cd /opt/novabank
+              mkdir -p /opt/demobank
+              cd /opt/demobank
 
               # 5. Écrire le fichier .env
               cat > .env <<'ENVFILE'
-              POSTGRES_DB=novabank_db
-              POSTGRES_USER=novabank
+              POSTGRES_DB=demobank_db
+              POSTGRES_USER=demobank
               POSTGRES_PASSWORD=azerty
               JWT_SECRET=912b1668c5731a05e618daf55aff1d9d09224f437e752aaa6b85735dc181d7ff
               JWT_EXPIRATION=86400000
@@ -75,7 +75,7 @@ resource "aws_instance" "serveur_web" {
               services:
                 postgres:
                   image: postgres:15-alpine
-                  container_name: novabank-db
+                  container_name: demobank-db
                   environment:
                     POSTGRES_DB: $${POSTGRES_DB}
                     POSTGRES_USER: $${POSTGRES_USER}
@@ -83,15 +83,15 @@ resource "aws_instance" "serveur_web" {
                   volumes:
                     - postgres_data:/var/lib/postgresql/data
                   networks:
-                    - novabank-net
+                    - demobank-net
                   healthcheck:
                     test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
                     interval: 5s
                     timeout: 5s
                     retries: 5
                 backend:
-                  image: 342677170112.dkr.ecr.us-east-1.amazonaws.com/nova-backend:latest
-                  container_name: novabank-backend
+                  image: 342677170112.dkr.ecr.us-east-1.amazonaws.com/demo-backend:latest
+                  container_name: demobank-backend
                   environment:
                     DB_URL: jdbc:postgresql://postgres:5432/$${POSTGRES_DB}
                     DB_USERNAME: $${POSTGRES_USER}
@@ -103,31 +103,31 @@ resource "aws_instance" "serveur_web" {
                     postgres:
                       condition: service_healthy
                   networks:
-                    - novabank-net
+                    - demobank-net
                 frontend:
-                  image: 342677170112.dkr.ecr.us-east-1.amazonaws.com/nova-frontend:latest
-                  container_name: novabank-frontend
+                  image: 342677170112.dkr.ecr.us-east-1.amazonaws.com/demo-frontend:latest
+                  container_name: demobank-frontend
                   ports:
                     - "80:80"
                   depends_on:
                     - backend
                   networks:
-                    - novabank-net
+                    - demobank-net
               networks:
-                novabank-net:
+                demobank-net:
                   driver: bridge
               volumes:
                 postgres_data:
               COMPOSEFILE
 
-              # 7. Lancer NovaBank
+              # 7. Lancer DemoBank
               docker compose -f docker-compose.prod.yml up -d
               EOF
 
   user_data_replace_on_change = true
 
   tags = {
-    Name = "novabank-prod"
+    Name = "demobank-prod"
   }
 }
 
@@ -139,14 +139,18 @@ output "public_ip" {
 
 
 resource "aws_ecr_repository" "backend" {
-  name = "nova-backend"
+  name = "demo-backend"
+  # Permet a Terraform de supprimer le depot meme s'il contient encore des images
+  force_delete = true
   image_scanning_configuration {
     scan_on_push = true
   }
 }
 
 resource "aws_ecr_repository" "frontend" {
-  name = "nova-frontend"
+  name = "demo-frontend"
+  # Permet a Terraform de supprimer le depot meme s'il contient encore des images
+  force_delete = true
   image_scanning_configuration {
     scan_on_push = true
   }
@@ -161,7 +165,7 @@ output "ecr_frontend_url" {
 }
 
 resource "aws_iam_role" "ec2_ecr_role" {
-  name = "novabank-ec2-ecr-role"
+  name = "demobank-ec2-ecr-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -181,6 +185,6 @@ resource "aws_iam_role_policy_attachment" "ecr_read" {
 }
 
 resource "aws_iam_instance_profile" "ec2_profile" {
-  name = "novabank-ec2-profile"
+  name = "demobank-ec2-profile"
   role = aws_iam_role.ec2_ecr_role.name
 }

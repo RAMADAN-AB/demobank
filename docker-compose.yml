@@ -2,7 +2,7 @@ services:
   # 1. Base de données PostgreSQL
   postgres:
     image: postgres:15-alpine
-    container_name: novabank-db
+    container_name: demobank-db
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -12,7 +12,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - novabank-net
+      - demobank-net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -22,9 +22,9 @@ services:
   # 2. Backend Spring Boot
   backend:
     build:
-      context: ./novaBank-backend
+      context: ./demoBank-backend
       dockerfile: Dockerfile
-    container_name: novabank-backend
+    container_name: demobank-backend
     ports:
       - "8080:8080"
     environment:
@@ -38,23 +38,23 @@ services:
       postgres:
         condition: service_healthy
     networks:
-      - novabank-net
+      - demobank-net
 
   # 3. Frontend Angular + NGINX
   frontend:
     build:
-      context: ./novaBank-frontend
+      context: ./demoBank-frontend
       dockerfile: Dockerfile
-    container_name: novabank-frontend
+    container_name: demobank-frontend
     ports:
       - "80:80"
     depends_on:
       - backend
     networks:
-      - novabank-net
+      - demobank-net
 
 networks:
-  novabank-net:
+  demobank-net:
     driver: bridge
 
 volumes:
