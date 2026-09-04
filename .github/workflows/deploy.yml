@@ -1,4 +1,47 @@
-Annotations
-1 error
-Error
-No event triggers defined in `on`
+name: Build and Push to ECR
+
+# Déclencheur : à chaque push sur la branche main
+on:
+  push:
+    branches: [ main ]
+
+# Permissions nécessaires pour l'authentification OIDC
+permissions:
+  id-token: write   # pour obtenir le token OIDC
+  contents: read    # pour lire le code du repo
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: 342677170112.dkr.ecr.us-east-1.amazonaws.com
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Récupérer le code du repo
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. S'authentifier à AWS via OIDC (aucune clé stockée !)
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::342677170112:role/demobank-github-actions-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      # 3. Se connecter à ECR
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # 4. Build et push de l'image BACKEND
+      - name: Build and push backend
+        run: |
+          docker build -t $ECR_REGISTRY/demo-backend:latest ./demoBank-backend
+          docker push $ECR_REGISTRY/demo-backend:latest
+
+      # 5. Build et push de l'image FRONTEND
+      - name: Build and push frontend
+        run: |
+          docker build -t $ECR_REGISTRY/demo-frontend:latest ./demoBank-frontend
+          docker push $ECR_REGISTRY/demo-frontend:latest
