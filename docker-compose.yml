@@ -22,7 +22,7 @@ services:
   # 2. Backend Spring Boot
   backend:
     build:
-      context: ./demoBank-backend
+      context: ./backend
       dockerfile: Dockerfile
     container_name: demobank-backend
     ports:
@@ -43,7 +43,7 @@ services:
   # 3. Frontend Angular + NGINX
   frontend:
     build:
-      context: ./demoBank-frontend
+      context: ./frontend
       dockerfile: Dockerfile
     container_name: demobank-frontend
     ports:

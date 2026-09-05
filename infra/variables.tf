@@ -1,3 +1,9 @@
+variable "aws_region" {
+  type        = string
+  description = "Region AWS de deploiement"
+  default     = "us-east-1"
+}
+
 variable "postgres_db" {
   type    = string
   default = "demobank_db"

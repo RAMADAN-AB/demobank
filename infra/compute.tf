@@ -1,7 +1,4 @@
-provider "aws" {
-  region = "us-east-1"
-}
-
+# Dernière AMI Ubuntu 22.04 publiée par Canonical.
 data "aws_ami" "ubuntu" {
   most_recent = true
   owners      = ["099720109477"] # Canonical
@@ -11,32 +8,8 @@ data "aws_ami" "ubuntu" {
   }
 }
 
-resource "aws_security_group" "web_sg" {
-  name = "aws-ha-webapp-sg"
-
-  # Entrée : autoriser le trafic web (port 80) depuis Internet
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-    ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # Sortie : autoriser tout le trafic sortant (pour télécharger Docker, les images ECR, etc.)
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-}
-
+# Serveur de production : installe Docker, se connecte à ECR via le rôle IAM,
+# puis lance la stack DemoBank au premier démarrage (user_data).
 resource "aws_instance" "serveur_web" {
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = "t3.micro"
@@ -135,114 +108,4 @@ resource "aws_instance" "serveur_web" {
   tags = {
     Name = "demobank-prod"
   }
-}
-
-
-output "public_ip" {
-  value       = aws_instance.serveur_web.public_ip
-  description = "IP publique du serveur web"
-}
-
-
-resource "aws_ecr_repository" "backend" {
-  name = "demo-backend"
-  # Permet a Terraform de supprimer le depot meme s'il contient encore des images
-  #force_delete = true
-  image_scanning_configuration {
-    scan_on_push = true
-  }
-}
-
-resource "aws_ecr_repository" "frontend" {
-  name = "demo-frontend"
-  # Permet a Terraform de supprimer le depot meme s'il contient encore des images
-  #force_delete = true
-  image_scanning_configuration {
-    scan_on_push = true
-  }
-}
-
-output "ecr_backend_url" {
-  value = aws_ecr_repository.backend.repository_url
-}
-
-output "ecr_frontend_url" {
-  value = aws_ecr_repository.frontend.repository_url
-}
-
-resource "aws_iam_role" "ec2_ecr_role" {
-  name = "demobank-ec2-ecr-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "ec2.amazonaws.com"
-      }
-    }]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "ecr_read" {
-  role       = aws_iam_role.ec2_ecr_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-}
-
-resource "aws_iam_instance_profile" "ec2_profile" {
-  name = "demobank-ec2-profile"
-  role = aws_iam_role.ec2_ecr_role.name
-}
-
-# =========================================================
-# OIDC : permettre à GitHub Actions d'agir sur AWS
-# =========================================================
-
-# A. Le provider OIDC GitHub
-resource "aws_iam_openid_connect_provider" "github" {
-  url             = "https://token.actions.githubusercontent.com"
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
-}
-
-# B. Le rôle que GitHub Actions va endosser
-resource "aws_iam_role" "github_actions" {
-  name = "demobank-github-actions-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Principal = {
-        Federated = aws_iam_openid_connect_provider.github.arn
-      }
-      Action = "sts:AssumeRoleWithWebIdentity"
-      Condition = {
-        StringEquals = {
-          "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-        }
-        # GitHub emet desormais un "sub" immuable, avec les ID numeriques du
-        # compte (@200751835) et du depot (@1350193891). On accepte les deux
-        # formats : la liste vaut un OU logique.
-        StringLike = {
-          "token.actions.githubusercontent.com:sub" = [
-            "repo:RAMADAN-AB@200751835/demobank@1350193891:*",
-            "repo:RAMADAN-AB/demobank:*"
-          ]
-        }
-      }
-    }]
-  })
-}
-
-# C. Autoriser ce rôle à pousser/tirer sur ECR
-resource "aws_iam_role_policy_attachment" "github_ecr" {
-  role       = aws_iam_role.github_actions.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser"
-}
-
-# Output : l'ARN du rôle (on en aura besoin dans le pipeline)
-output "github_actions_role_arn" {
-  value = aws_iam_role.github_actions.arn
 }
