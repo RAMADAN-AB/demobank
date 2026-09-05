@@ -222,8 +222,14 @@ resource "aws_iam_role" "github_actions" {
         StringEquals = {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
         }
+        # GitHub emet desormais un "sub" immuable, avec les ID numeriques du
+        # compte (@200751835) et du depot (@1350193891). On accepte les deux
+        # formats : la liste vaut un OU logique.
         StringLike = {
-          "token.actions.githubusercontent.com:sub" = "repo:RAMADAN-AB/demobank:*"
+          "token.actions.githubusercontent.com:sub" = [
+            "repo:RAMADAN-AB@200751835/demobank@1350193891:*",
+            "repo:RAMADAN-AB/demobank:*"
+          ]
         }
       }
     }]
