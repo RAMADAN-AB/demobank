@@ -28,6 +28,7 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::342677170112:role/demobank-github-actions-role
           aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
 
       # 3. Se connecter à ECR
       - name: Login to Amazon ECR
