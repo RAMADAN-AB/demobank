@@ -46,3 +46,44 @@ jobs:
         run: |
           docker build -t $ECR_REGISTRY/demo-frontend:latest ./frontend
           docker push $ECR_REGISTRY/demo-frontend:latest
+
+  # =========================================================
+  # Job 2 : déployer sur l'EC2 via SSM (après le push des images)
+  # =========================================================
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::342677170112:role/demobank-github-actions-role
+          aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
+
+      - name: Deploy to EC2 via SSM
+        run: |
+          INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=demobank-prod" "Name=instance-state-name,Values=running" \
+            --query "Reservations[0].Instances[0].InstanceId" \
+            --output text)
+
+          echo "Deploiement sur l'instance : $INSTANCE_ID"
+
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --parameters 'commands=["cd /opt/demobank","docker compose -f docker-compose.prod.yml pull","docker compose -f docker-compose.prod.yml up -d"]' \
+            --query "Command.CommandId" \
+            --output text)
+
+          echo "Commande SSM envoyee : $COMMAND_ID"
+
+          aws ssm wait command-executed \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$INSTANCE_ID" || true
+
+          echo "--- Resultat de la commande ---"
+          aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$INSTANCE_ID"
