@@ -45,3 +45,24 @@ resource "aws_iam_role_policy_attachment" "github_ecr" {
   role       = aws_iam_role.github_actions.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser"
 }
+
+# D. Autoriser ce rôle à envoyer des commandes SSM à l'EC2 (déploiement CI/CD)
+resource "aws_iam_role_policy" "github_ssm" {
+  name = "github-ssm-send-command"
+  role = aws_iam_role.github_actions.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+		  "ec2:DescribeInstances",
+          "ssm:SendCommand",
+          "ssm:GetCommandInvocation"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}

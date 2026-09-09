@@ -25,3 +25,9 @@ resource "aws_iam_instance_profile" "ec2_profile" {
   name = "demobank-ec2-profile"
   role = aws_iam_role.ec2_ecr_role.name
 }
+
+# Autoriser l'EC2 à être pilotée par SSM (pour le déploiement CI/CD sans SSH)
+resource "aws_iam_role_policy_attachment" "ec2_ssm" {
+  role       = aws_iam_role.ec2_ecr_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
