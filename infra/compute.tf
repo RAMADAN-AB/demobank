@@ -15,7 +15,15 @@ resource "aws_instance" "serveur_web" {
   instance_type          = "t3.micro"
   vpc_security_group_ids = [aws_security_group.web_sg.id]
   iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name
-
+  # Forcer IMDSv2 (tokens de session obligatoires) - protection SSRF
+  metadata_options {
+    http_tokens   = "required"
+    http_endpoint = "enabled"
+  }
+    # Chiffrement du disque au repos
+  root_block_device {
+    encrypted = true
+  }
   user_data = <<-EOF
               #!/bin/bash
               set -e
@@ -40,47 +48,37 @@ resource "aws_instance" "serveur_web" {
               mkdir -p /opt/demobank
               cd /opt/demobank
 
-              # 5. Écrire le fichier .env
+              # 5. Récupérer les secrets depuis AWS Secrets Manager et écrire le .env
+              SECRET_JSON=$(aws secretsmanager get-secret-value \
+                --secret-id demobank/app-secrets \
+                --region us-east-1 \
+                --query SecretString \
+                --output text)
+
+              POSTGRES_PASSWORD=$(echo "$SECRET_JSON" | grep -o '"POSTGRES_PASSWORD":"[^"]*"' | cut -d'"' -f4)
+              JWT_SECRET=$(echo "$SECRET_JSON" | grep -o '"JWT_SECRET":"[^"]*"' | cut -d'"' -f4)
+
               cat > .env <<ENVFILE
               POSTGRES_DB=${var.postgres_db}
               POSTGRES_USER=${var.postgres_user}
-              POSTGRES_PASSWORD=${var.postgres_password}
-              JWT_SECRET=${var.jwt_secret}
+              POSTGRES_PASSWORD=$POSTGRES_PASSWORD
+              JWT_SECRET=$JWT_SECRET
               JWT_EXPIRATION=${var.jwt_expiration}
               ENVFILE
 
               # 6. Écrire le docker-compose.prod.yml
               cat > docker-compose.prod.yml <<'COMPOSEFILE'
               services:
-                postgres:
-                  image: postgres:15-alpine
-                  container_name: demobank-db
-                  environment:
-                    POSTGRES_DB: $${POSTGRES_DB}
-                    POSTGRES_USER: $${POSTGRES_USER}
-                    POSTGRES_PASSWORD: $${POSTGRES_PASSWORD}
-                  volumes:
-                    - postgres_data:/var/lib/postgresql/data
-                  networks:
-                    - demobank-net
-                  healthcheck:
-                    test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-                    interval: 5s
-                    timeout: 5s
-                    retries: 5
                 backend:
                   image: 342677170112.dkr.ecr.us-east-1.amazonaws.com/demo-backend:latest
                   container_name: demobank-backend
                   environment:
-                    DB_URL: jdbc:postgresql://postgres:5432/$${POSTGRES_DB}
+                    DB_URL: jdbc:postgresql://${aws_db_instance.demobank.address}:5432/$${POSTGRES_DB}
                     DB_USERNAME: $${POSTGRES_USER}
                     DB_PASSWORD: $${POSTGRES_PASSWORD}
                     JWT_SECRET: $${JWT_SECRET}
                     JWT_EXPIRATION: $${JWT_EXPIRATION:-86400000}
                     SPRING_JPA_HIBERNATE_DDL_AUTO: update
-                  depends_on:
-                    postgres:
-                      condition: service_healthy
                   networks:
                     - demobank-net
                 frontend:
@@ -95,8 +93,6 @@ resource "aws_instance" "serveur_web" {
               networks:
                 demobank-net:
                   driver: bridge
-              volumes:
-                postgres_data:
               COMPOSEFILE
 
               # 7. Lancer DemoBank
