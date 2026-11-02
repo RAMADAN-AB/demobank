@@ -84,6 +84,12 @@ public class TransactionService {
         Account account = accountRepository.findByAccountNumber(accountNumber)
                 .orElseThrow(() -> new RuntimeException("Compte introuvable"));
 
+        // Seul le propriétaire du compte peut consulter son historique
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        if (!account.getUser().getEmail().equals(email)) {
+            throw new RuntimeException("Vous n'êtes pas propriétaire de ce compte");
+        }
+
         return transactionRepository.findBySourceAccountOrTargetAccountOrderByTimestampDesc(account, account)
                 .stream()
                 .map(t -> TransactionResponse.builder()

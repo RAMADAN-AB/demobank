@@ -1,4 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideRouter } from '@angular/router';
 
 import { DashboardComponent } from './dashboard.component';
 
@@ -8,7 +11,8 @@ describe('DashboardComponent', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      imports: [DashboardComponent]
+      imports: [DashboardComponent],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])]
     });
     fixture = TestBed.createComponent(DashboardComponent);
     component = fixture.componentInstance;
